@@ -1,10 +1,38 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const latitude = ref(40) // Default latitude
 const dayOfYear = ref(172) // Default to summer solstice (approx June 21)
 const dstOffset = ref(0) // Default DST offset
+const animatedDstOffset = ref(0)
 const animationMode = ref('clock') // 'solar' or 'clock'
+
+let animationFrameId = null
+watch(dstOffset, (newVal) => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId)
+  
+  const startVal = animatedDstOffset.value
+  const endVal = newVal
+  const duration = 500 // matches CSS transition duration
+  let startTime = null
+
+  function animate(currentTime) {
+    if (!startTime) startTime = currentTime
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    
+    // Smooth step easing to approximate the CSS transition timing
+    const easeProgress = progress * progress * (3 - 2 * progress)
+    
+    animatedDstOffset.value = startVal + (endVal - startVal) * easeProgress
+    
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(animate)
+    }
+  }
+  
+  animationFrameId = requestAnimationFrame(animate)
+})
 
 const cities = [
   { name: 'Custom', lat: null },
@@ -417,7 +445,7 @@ const graphTransform = computed(() => {
                     :y="height - margin.bottom + 54"
                     fill="#ff00ff" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
                   >
-                    {{ formatTime(events.sunrise, dstOffset) }}
+                    {{ formatTime(events.sunrise, animatedDstOffset) }}
                   </text>
                 </g>
 
@@ -456,7 +484,7 @@ const graphTransform = computed(() => {
                     :y="height - margin.bottom + 54"
                     fill="#ff00ff" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
                   >
-                    {{ formatTime(events.sunset, dstOffset) }}
+                    {{ formatTime(events.sunset, animatedDstOffset) }}
                   </text>
                 </g>
               </template>
