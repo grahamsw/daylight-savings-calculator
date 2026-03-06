@@ -14,14 +14,15 @@ import SunGraph from './components/SunGraph.vue'
         <summary>What this shows</summary>
         <div class="info-content">
           <p>Every time the clocks go forward or back I find myself counting on my fingers to figure out what happens to daylight.</p>
-          <p>This page might help show the relation between sunset, sunrise, and daylight saving. (Clocks go forward, but sunrise is later.)</p>
-          <p>For extra goodness this shows the difference of the impact of DST depending on how far North or South you are, and its impact on morning and evening commutes.</p>
+          <p>This app shows the relation between sunset, sunrise, and daylight saving. (Clocks go forward, but sunrise is later.)</p>
+          <p>It also shows the different impact of DST depending on how far North or South you are, and its impact on morning and evening commutes.</p>
           <ul>
             <li><strong>LATITUDE:</strong> Move north or south to see how day length changes.</li>
             <li><strong>DAY OF YEAR:</strong> See hours of daylight change with the seasons.</li>
             <li><strong>DAYLIGHT SAVING OFFSET:</strong> Shift the clock axis to see how "Spring Forward" or "Fall Back" affects when you experience sunlight.</li>
             <li><strong>ANIMATION MODE:</strong> Toggle between <em>Move clock</em> (the reality) or <em>Move sun</em> (how we experience the shift).</li>
           </ul>
+            <p>It's still confusing, but I think I understand better <em>why</em> it's confusing.</p>
         </div>
       </details>
     </header>

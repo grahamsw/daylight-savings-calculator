@@ -505,7 +505,7 @@ const graphTransform = computed(() => {
 .sun-graph-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
   max-width: 900px;
   width: 100%;
   margin: 0 auto;
@@ -515,7 +515,7 @@ const graphTransform = computed(() => {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid #0ea5e9;
   border-radius: 4px;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
   position: relative;
   box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
 }
@@ -546,14 +546,14 @@ const graphTransform = computed(() => {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  margin-top: 0.5rem;
+  gap: 0.8rem;
+  margin-top: 0.25rem;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.3rem;
 }
 
 .button-group {
@@ -567,9 +567,9 @@ const graphTransform = computed(() => {
   background: #050510;
   color: #0ea5e9;
   border: 1px solid #0ea5e9;
-  padding: 0.5rem;
+  padding: 0.3rem;
   font-family: 'Fira Code', monospace;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s;
   border-radius: 2px;
