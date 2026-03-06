@@ -229,11 +229,15 @@ const formatTime = (decimalHour, offset = 0) => {
             <pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
               <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#0ea5e9" stroke-width="0.5" opacity="0.1" />
             </pattern>
+            
+            <clipPath id="axis-clip">
+              <rect :x="margin.left - 25" :y="height - margin.bottom + 35" :width="innerWidth + 50" :height="40" />
+            </clipPath>
           </defs>
 
           <!-- Background areas -->
           <!-- Sky (Above horizon) -->
-          <rect :x="margin.left" :y="margin.top" :width="innerWidth" :height="horizonY - margin.top" fill="#3b82f6" opacity="0.25" />
+          <rect :x="margin.left" :y="margin.top" :width="innerWidth" :height="horizonY - margin.top" fill="#3b82f6" opacity="0.45" />
           
           <!-- Ground/Night (Below horizon) -->
           <rect :x="margin.left" :y="horizonY" :width="innerWidth" :height="innerHeight - (horizonY - margin.top)" fill="#0f172a" opacity="0.85" />
@@ -266,24 +270,42 @@ const formatTime = (decimalHour, offset = 0) => {
           <!-- Axis labels -->
           <g class="labels" fill="#00ffcc" font-family="'Fira Code', monospace" font-size="10" opacity="0.8">
             <!-- Bottom X axis 1 (Solar Time) -->
-            <text v-for="h in 25" :key="`x-${h}`" 
-                  v-show="(h-1) % 4 === 0"
-                  :x="margin.left + ((h-1) / 24) * innerWidth" 
-                  :y="height - margin.bottom + 25" 
-                  text-anchor="middle">
-              {{ String(h-1).padStart(2, '0') }}:00
-            </text>
+            <g v-for="h in 25" :key="`x-${h}`" v-show="(h-1) % 4 === 0">
+              <text 
+                    :x="margin.left + ((h-1) / 24) * innerWidth" 
+                    :y="height - margin.bottom + 25" 
+                    text-anchor="middle">
+                {{ String(h-1).padStart(2, '0') }}:00
+              </text>
+              <line 
+                    :x1="margin.left + ((h-1) / 24) * innerWidth" 
+                    :y1="height - margin.bottom + 30" 
+                    :x2="margin.left + ((h-1) / 24) * innerWidth" 
+                    :y2="height - margin.bottom + 35" 
+                    stroke="#00ffcc" stroke-width="1.5" opacity="0.5" />
+            </g>
             <text :x="margin.left - 35" :y="height - margin.bottom + 25" text-anchor="end" fill="#00ffcc">Solar</text>
             
-            <!-- Bottom X axis 2 (Clock Time) -->
-            <text v-for="h in 25" :key="`clock-x-${h}`" 
-                  v-show="(h-1) % 4 === 0"
-                  :x="margin.left + ((h-1) / 24) * innerWidth" 
-                  :y="height - margin.bottom + 55" 
-                  text-anchor="middle"
-                  fill="#ff00ff">
-              {{ String((h - 1 + dstOffset) % 24).padStart(2, '0') }}:00
-            </text>
+            <!-- Bottom X axis 2 (Clock Time) with sliding animation -->
+            <g clip-path="url(#axis-clip)">
+              <g :style="{ transform: `translateX(${-(dstOffset / 24) * innerWidth}px)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                <g v-for="hour in 73" :key="`clock-x-${hour}`" v-show="(hour - 37) % 4 === 0">
+                  <text 
+                        :x="margin.left + ((hour - 37) / 24) * innerWidth" 
+                        :y="height - margin.bottom + 55" 
+                        text-anchor="middle"
+                        fill="#ff00ff">
+                    {{ String(((hour - 37) % 24 + 24) % 24).padStart(2, '0') }}:00
+                  </text>
+                  <line 
+                        :x1="margin.left + ((hour - 37) / 24) * innerWidth" 
+                        :y1="height - margin.bottom + 41" 
+                        :x2="margin.left + ((hour - 37) / 24) * innerWidth" 
+                        :y2="height - margin.bottom + 46" 
+                        stroke="#ff00ff" stroke-width="1.5" opacity="0.5" />
+                </g>
+              </g>
+            </g>
             <text :x="margin.left - 35" :y="height - margin.bottom + 55" text-anchor="end" fill="#ff00ff">Clock</text>
 
             <!-- Y axis (altitude) -->
@@ -305,35 +327,35 @@ const formatTime = (decimalHour, offset = 0) => {
               :y1="margin.top"
               :x2="margin.left + (solarEvents.sunrise / 24) * innerWidth"
               :y2="height - margin.bottom + 65"
-              stroke="#0ea5e9" stroke-width="1" stroke-dasharray="2,2" opacity="0.8"
+              stroke="#ffffff" stroke-width="1.5" stroke-dasharray="3,3"
             />
             <!-- Solar Callout -->
             <rect
-              :x="margin.left + (solarEvents.sunrise / 24) * innerWidth - 28"
-              :y="height - margin.bottom + 10"
-              width="56" height="18" rx="2"
-              fill="#0f172a" stroke="#00ffcc" stroke-width="1"
+              :x="margin.left + (solarEvents.sunrise / 24) * innerWidth - 32"
+              :y="height - margin.bottom + 8"
+              width="64" height="22" rx="4"
+              fill="#0f172a" stroke="#00ffcc" stroke-width="1.5"
             />
             <text
               :x="margin.left + (solarEvents.sunrise / 24) * innerWidth"
-              :y="height - margin.bottom + 23"
-              fill="#00ffcc" font-family="'Fira Code', monospace" font-size="10" text-anchor="middle"
+              :y="height - margin.bottom + 24"
+              fill="#00ffcc" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
             >
-              ↑ {{ formatTime(solarEvents.sunrise) }}
+              {{ formatTime(solarEvents.sunrise) }}
             </text>
             <!-- Clock Callout -->
             <rect
-              :x="margin.left + (solarEvents.sunrise / 24) * innerWidth - 28"
-              :y="height - margin.bottom + 40"
-              width="56" height="18" rx="2"
-              fill="#0f172a" stroke="#ff00ff" stroke-width="1"
+              :x="margin.left + (solarEvents.sunrise / 24) * innerWidth - 32"
+              :y="height - margin.bottom + 38"
+              width="64" height="22" rx="4"
+              fill="#0f172a" stroke="#ff00ff" stroke-width="1.5"
             />
             <text
               :x="margin.left + (solarEvents.sunrise / 24) * innerWidth"
-              :y="height - margin.bottom + 53"
-              fill="#ff00ff" font-family="'Fira Code', monospace" font-size="10" text-anchor="middle"
+              :y="height - margin.bottom + 54"
+              fill="#ff00ff" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
             >
-              ↑ {{ formatTime(solarEvents.sunrise, dstOffset) }}
+              {{ formatTime(solarEvents.sunrise, dstOffset) }}
             </text>
           </g>
 
@@ -343,35 +365,35 @@ const formatTime = (decimalHour, offset = 0) => {
               :y1="margin.top"
               :x2="margin.left + (solarEvents.sunset / 24) * innerWidth"
               :y2="height - margin.bottom + 65"
-              stroke="#0ea5e9" stroke-width="1" stroke-dasharray="2,2" opacity="0.8"
+              stroke="#ffffff" stroke-width="1.5" stroke-dasharray="3,3"
             />
             <!-- Solar Callout -->
             <rect
-              :x="margin.left + (solarEvents.sunset / 24) * innerWidth - 28"
-              :y="height - margin.bottom + 10"
-              width="56" height="18" rx="2"
-              fill="#0f172a" stroke="#00ffcc" stroke-width="1"
+              :x="margin.left + (solarEvents.sunset / 24) * innerWidth - 32"
+              :y="height - margin.bottom + 8"
+              width="64" height="22" rx="4"
+              fill="#0f172a" stroke="#00ffcc" stroke-width="1.5"
             />
             <text
               :x="margin.left + (solarEvents.sunset / 24) * innerWidth"
-              :y="height - margin.bottom + 23"
-              fill="#00ffcc" font-family="'Fira Code', monospace" font-size="10" text-anchor="middle"
+              :y="height - margin.bottom + 24"
+              fill="#00ffcc" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
             >
-              ↓ {{ formatTime(solarEvents.sunset) }}
+              {{ formatTime(solarEvents.sunset) }}
             </text>
             <!-- Clock Callout -->
             <rect
-              :x="margin.left + (solarEvents.sunset / 24) * innerWidth - 28"
-              :y="height - margin.bottom + 40"
-              width="56" height="18" rx="2"
-              fill="#0f172a" stroke="#ff00ff" stroke-width="1"
+              :x="margin.left + (solarEvents.sunset / 24) * innerWidth - 32"
+              :y="height - margin.bottom + 38"
+              width="64" height="22" rx="4"
+              fill="#0f172a" stroke="#ff00ff" stroke-width="1.5"
             />
             <text
               :x="margin.left + (solarEvents.sunset / 24) * innerWidth"
-              :y="height - margin.bottom + 53"
-              fill="#ff00ff" font-family="'Fira Code', monospace" font-size="10" text-anchor="middle"
+              :y="height - margin.bottom + 54"
+              fill="#ff00ff" font-family="sans-serif" font-weight="bold" font-size="12" text-anchor="middle"
             >
-              ↓ {{ formatTime(solarEvents.sunset, dstOffset) }}
+              {{ formatTime(solarEvents.sunset, dstOffset) }}
             </text>
           </g>
 
