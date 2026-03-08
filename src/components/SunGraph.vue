@@ -1,11 +1,48 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+
+const getDayOfYear = () => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const diff = now - start
+  const oneDay = 1000 * 60 * 60 * 24
+  return Math.floor(diff / oneDay)
+}
 
 const latitude = ref(40) // Default latitude
 const dayOfYear = ref(172) // Default to summer solstice (approx June 21)
 const dstOffset = ref(0) // Default DST offset
 const animatedDstOffset = ref(0)
 const animationMode = ref('clock') // 'solar' or 'clock'
+const isSyncing = ref(false)
+
+const syncToCurrent = () => {
+  isSyncing.value = true
+  dayOfYear.value = getDayOfYear()
+
+  // Detect current DST status
+  const now = new Date()
+  const jan = new Date(now.getFullYear(), 0, 1).getTimezoneOffset()
+  const jul = new Date(now.getFullYear(), 6, 1).getTimezoneOffset()
+  const isDst = now.getTimezoneOffset() < Math.max(jan, jul)
+  dstOffset.value = isDst ? 1 : 0
+  
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        latitude.value = Math.round(position.coords.latitude)
+        onLatitudeChange()
+        isSyncing.value = false
+      },
+      (error) => {
+        console.warn('Geolocation access denied or unavailable.')
+        isSyncing.value = false
+      }
+    )
+  } else {
+    isSyncing.value = false
+  }
+}
 
 let animationFrameId = null
 watch(dstOffset, (newVal) => {
@@ -132,33 +169,49 @@ const solarEventsList = computed(() => {
   const declinationDeg = 23.45 * Math.sin((360 / 365) * (dayOfYear.value - 81) * (Math.PI / 180))
   const declinationRad = declinationDeg * (Math.PI / 180)
 
-  const cosHourAngle = -Math.tan(latRad) * Math.tan(declinationRad)
+  const getHourAngle = (altDeg) => {
+    const altRad = altDeg * (Math.PI / 180)
+    const cosH = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(declinationRad)) / (Math.cos(latRad) * Math.cos(declinationRad))
+    if (cosH < -1) return 'above' // Always above this altitude
+    if (cosH > 1) return 'below' // Always below this altitude
+    const hRad = Math.acos(cosH)
+    return hRad * (180 / Math.PI)
+  }
 
-  let baseEvents = { sunrise: null, sunset: null }
-  if (cosHourAngle < -1) {
-    baseEvents = { sunrise: null, sunset: null } // Midnight sun
-  } else if (cosHourAngle > 1) {
-    baseEvents = { sunrise: null, sunset: null } // Polar night
-  } else {
-    const hourAngleRad = Math.acos(cosHourAngle)
-    const hourAngleDeg = hourAngleRad * (180 / Math.PI)
-    baseEvents = {
-      sunrise: 12 - (hourAngleDeg / 15),
-      sunset: 12 + (hourAngleDeg / 15)
+  const getEventTimes = (altDeg) => {
+    const ha = getHourAngle(altDeg)
+    if (ha === 'above') return { start: 0, end: 24 }
+    if (ha === 'below') return { start: null, end: null }
+    return {
+      start: 12 - (ha / 15),
+      end: 12 + (ha / 15)
     }
+  }
+
+  const sunriseSunset = getEventTimes(0)
+  const civil = getEventTimes(-6)
+  const nautical = getEventTimes(-12)
+  const astro = getEventTimes(-18)
+
+  const baseEvents = {
+    sunrise: sunriseSunset.start,
+    sunset: sunriseSunset.end,
+    civilDawn: civil.start,
+    civilDusk: civil.end,
+    nauticalDawn: nautical.start,
+    nauticalDusk: nautical.end,
+    astroDawn: astro.start,
+    astroDusk: astro.end
   }
 
   const list = []
   // Generate for yesterday, today, and tomorrow
   for (let offset = -1; offset <= 1; offset++) {
-    if (baseEvents.sunrise !== null) {
-      list.push({
-        sunrise: baseEvents.sunrise + (offset * 24),
-        sunset: baseEvents.sunset + (offset * 24)
-      })
-    } else {
-      list.push({ sunrise: null, sunset: null })
+    const events = {}
+    for (const [key, value] of Object.entries(baseEvents)) {
+      events[key] = value !== null ? value + (offset * 24) : null
     }
+    list.push(events)
   }
   return list
 })
@@ -212,11 +265,21 @@ const graphTransform = computed(() => {
         <div class="control-group">
           <div class="header-row">
             <label for="latitude">LATITUDE [{{ latitude }}&deg;]</label>
-            <select v-model="selectedCity" @change="onCityChange" class="city-select">
-              <option v-for="city in cities" :key="city.name" :value="city.name">
-                {{ city.name }}
-              </option>
-            </select>
+            <div class="header-actions">
+              <button 
+                class="action-button" 
+                :class="{ syncing: isSyncing }" 
+                @click="syncToCurrent"
+                :disabled="isSyncing"
+              >
+                {{ isSyncing ? 'Syncing...' : 'Set to current location and day' }}
+              </button>
+              <select v-model="selectedCity" @change="onCityChange" class="city-select">
+                <option v-for="city in cities" :key="city.name" :value="city.name">
+                  {{ city.name }}
+                </option>
+              </select>
+            </div>
           </div>
           <input 
             id="latitude" 
@@ -315,10 +378,10 @@ const graphTransform = computed(() => {
 
           <!-- Background areas -->
           <!-- Sky (Above horizon) -->
-          <rect :x="margin.left" :y="margin.top" :width="innerWidth" :height="horizonY - margin.top" fill="#3b82f6" opacity="0.45" />
+          <rect :x="margin.left" :y="margin.top" :width="innerWidth" :height="horizonY - margin.top" fill="#0f172a" opacity="0.8" />
           
           <!-- Ground/Night (Below horizon) -->
-          <rect :x="margin.left" :y="horizonY" :width="innerWidth" :height="innerHeight - (horizonY - margin.top)" fill="#0f172a" opacity="0.85" />
+          <rect :x="margin.left" :y="horizonY" :width="innerWidth" :height="innerHeight - (horizonY - margin.top)" fill="#020617" opacity="0.85" />
 
           <!-- Background Grid pattern overlay -->
           <rect :x="margin.left" :y="margin.top" :width="innerWidth" :height="innerHeight" fill="url(#gridPattern)" />
@@ -401,13 +464,70 @@ const graphTransform = computed(() => {
             </text>
           </g>
 
-          <!-- Horizon Label -->
-          <text :x="width - margin.right + 5" :y="horizonY + 3" fill="#00ffcc" font-family="'Fira Code', monospace" font-size="10" filter="url(#glow)">HORIZON</text>
-
           <!-- Animated Graph Elements (Sun, events, solar noon) -->
           <g clip-path="url(#animated-elements-clip)">
             <g :style="{ transform: graphTransform, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }">
               
+              <!-- Sky Color Blocks (Segments) -->
+              <g opacity="0.55">
+                <template v-for="(events, index) in solarEventsList" :key="`sky-${index}`">
+                  <!-- Dawn Segments -->
+                  <rect v-if="events.astroDawn !== null && events.nauticalDawn !== null"
+                    :x="margin.left + (events.astroDawn / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.nauticalDawn - events.astroDawn + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#0f172a"
+                  />
+                  <rect v-if="events.nauticalDawn !== null && events.civilDawn !== null"
+                    :x="margin.left + (events.nauticalDawn / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.civilDawn - events.nauticalDawn + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#1e3a8a"
+                  />
+                  <rect v-if="events.civilDawn !== null && events.sunrise !== null"
+                    :x="margin.left + (events.civilDawn / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.sunrise - events.civilDawn + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#3b82f6"
+                  />
+
+                  <!-- Day Segment (Short) -->
+                  <rect v-if="events.sunrise !== null"
+                    :x="margin.left + (events.sunrise / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.sunset - events.sunrise) / 24) * innerWidth"
+                    :height="horizonY - margin.top"
+                    fill="#7dd3fc"
+                  />
+
+                  <!-- Dusk Segments -->
+                  <rect v-if="events.sunset !== null && events.civilDusk !== null"
+                    :x="margin.left + (events.sunset / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.civilDusk - events.sunset + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#3b82f6"
+                  />
+                  <rect v-if="events.civilDusk !== null && events.nauticalDusk !== null"
+                    :x="margin.left + (events.civilDusk / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.nauticalDusk - events.civilDusk + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#1e3a8a"
+                  />
+                  <rect v-if="events.nauticalDusk !== null && events.astroDusk !== null"
+                    :x="margin.left + (events.nauticalDusk / 24) * innerWidth"
+                    :y="margin.top"
+                    :width="((events.astroDusk - events.nauticalDusk + 0.02) / 24) * innerWidth"
+                    :height="innerHeight + 25"
+                    fill="#0f172a"
+                  />
+                </template>
+              </g>
+
               <!-- Sunrise/Sunset lines and callouts for multiple days -->
               <template v-for="(events, index) in solarEventsList" :key="`events-${index}`">
                 <g v-if="events.sunrise !== null" class="solar-event sunrise">
@@ -582,6 +702,40 @@ const graphTransform = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.action-button {
+  background: #050510;
+  color: #00ffcc;
+  border: 1px solid #00ffcc;
+  padding: 0.2rem 0.6rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-radius: 2px;
+}
+
+.action-button:hover:not(:disabled) {
+  background: rgba(0, 255, 204, 0.2);
+  box-shadow: 0 0 5px rgba(0, 255, 204, 0.4);
+}
+
+.action-button.syncing {
+  opacity: 0.7;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
 }
 
 .button-group {
